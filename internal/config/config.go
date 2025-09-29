@@ -4,13 +4,38 @@ import (
 	"os"
 	"strconv"
 	"time"
-
-	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/pkg/adapters"
 )
 
+// RepositoryConfig holds configuration for database repositories
+type RepositoryConfig struct {
+	// Database connections
+	PostgresURL string
+	RedisURL    string
+	MongoURL    string
+
+	// Connection pooling
+	MaxConnections     int
+	MaxIdleConnections int
+	ConnectionTimeout  time.Duration
+	IdleTimeout        time.Duration
+
+	// Retry configuration
+	MaxRetries    int
+	RetryInterval time.Duration
+
+	// Cache configuration
+	DefaultTTL time.Duration
+
+	// Health check configuration
+	HealthCheckInterval time.Duration
+
+	// Environment
+	Environment string
+}
+
 // LoadRepositoryConfig loads configuration from environment variables
-func LoadRepositoryConfig() *adapters.RepositoryConfig {
-	return &adapters.RepositoryConfig{
+func LoadRepositoryConfig() *RepositoryConfig {
+	return &RepositoryConfig{
 		// Database connections
 		PostgresURL: getEnv("POSTGRES_URL", "postgres://user:password@localhost:5432/trading_ecosystem?sslmode=disable"),
 		RedisURL:    getEnv("REDIS_URL", "redis://localhost:6379/0"),

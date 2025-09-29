@@ -16,7 +16,7 @@ func NewAuditDataAdapterFromEnv(logger *logrus.Logger) (DataAdapter, error) {
 
 // NewAuditDataAdapterWithDefaults creates a new audit data adapter with default configuration for development
 func NewAuditDataAdapterWithDefaults(logger *logrus.Logger) (DataAdapter, error) {
-	cfg := &RepositoryConfig{
+	cfg := &config.RepositoryConfig{
 		PostgresURL: "postgres://user:password@localhost:5432/trading_ecosystem?sslmode=disable",
 		RedisURL:    "redis://localhost:6379/0",
 		MongoURL:    "mongodb://localhost:27017/audit_correlator",

@@ -9,22 +9,23 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 
-	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/pkg/adapters"
+	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/internal/config"
+	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/pkg/interfaces"
 )
 
 // CacheRedisRepository implements CacheRepository using Redis
 type CacheRedisRepository struct {
 	client *redis.Client
 	logger *logrus.Logger
-	config *adapters.RepositoryConfig
+	config *config.RepositoryConfig
 }
 
 // NewCacheRepository creates a new Redis-based cache repository
-func NewCacheRepository(client *redis.Client, logger *logrus.Logger, config *adapters.RepositoryConfig) adapters.CacheRepository {
+func NewCacheRepository(client *redis.Client, logger *logrus.Logger, cfg *config.RepositoryConfig) interfaces.CacheRepository {
 	return &CacheRedisRepository{
 		client: client,
 		logger: logger,
-		config: config,
+		config: cfg,
 	}
 }
 

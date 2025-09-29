@@ -10,7 +10,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 
-	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/pkg/adapters"
+	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/internal/config"
+	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/pkg/interfaces"
 	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/pkg/models"
 )
 
@@ -18,15 +19,15 @@ import (
 type ServiceDiscoveryRedisRepository struct {
 	client *redis.Client
 	logger *logrus.Logger
-	config *adapters.RepositoryConfig
+	config *config.RepositoryConfig
 }
 
 // NewServiceDiscoveryRepository creates a new Redis-based service discovery repository
-func NewServiceDiscoveryRepository(client *redis.Client, logger *logrus.Logger, config *adapters.RepositoryConfig) adapters.ServiceDiscoveryRepository {
+func NewServiceDiscoveryRepository(client *redis.Client, logger *logrus.Logger, cfg *config.RepositoryConfig) interfaces.ServiceDiscoveryRepository {
 	return &ServiceDiscoveryRedisRepository{
 		client: client,
 		logger: logger,
-		config: config,
+		config: cfg,
 	}
 }
 
@@ -69,7 +70,6 @@ func (r *ServiceDiscoveryRedisRepository) RegisterService(ctx context.Context, s
 
 // UpdateService updates an existing service registration
 func (r *ServiceDiscoveryRedisRepository) UpdateService(ctx context.Context, service *models.ServiceRegistration) error {
-	service.UpdatedAt = time.Now()
 	service.LastSeen = time.Now()
 
 	serviceData, err := json.Marshal(service)

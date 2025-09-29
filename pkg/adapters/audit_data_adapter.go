@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	_ "github.com/lib/pq"
 
+	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/internal/config"
 	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/internal/postgres"
 	redisImpl "github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/internal/redis"
 	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/pkg/models"
@@ -28,7 +29,7 @@ type AuditDataAdapter struct {
 	cache             CacheRepository
 
 	// Configuration and logging
-	config *RepositoryConfig
+	config *config.RepositoryConfig
 	logger *logrus.Logger
 
 	// Connection state
@@ -36,14 +37,14 @@ type AuditDataAdapter struct {
 }
 
 // NewAuditDataAdapter creates a new audit data adapter
-func NewAuditDataAdapter(config *RepositoryConfig, logger *logrus.Logger) (DataAdapter, error) {
+func NewAuditDataAdapter(cfg *config.RepositoryConfig, logger *logrus.Logger) (DataAdapter, error) {
 	if logger == nil {
 		logger = logrus.New()
 		logger.SetLevel(logrus.InfoLevel)
 	}
 
 	adapter := &AuditDataAdapter{
-		config: config,
+		config: cfg,
 		logger: logger,
 	}
 
@@ -418,7 +419,7 @@ func (a *AuditDataAdapter) initializeRepositories() {
 // AuditTransaction implements the Transaction interface
 type AuditTransaction struct {
 	tx     *sql.Tx
-	config *RepositoryConfig
+	config *config.RepositoryConfig
 	logger *logrus.Logger
 }
 

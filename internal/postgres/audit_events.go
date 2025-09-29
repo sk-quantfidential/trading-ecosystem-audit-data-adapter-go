@@ -10,23 +10,32 @@ import (
 	"github.com/lib/pq"
 	"github.com/sirupsen/logrus"
 
-	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/pkg/adapters"
+	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/internal/config"
+	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/pkg/interfaces"
 	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/pkg/models"
 )
 
+// DBExecutor interface allows using either *sql.DB or *sql.Tx
+type DBExecutor interface {
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
+	PrepareContext(ctx context.Context, query string) (*sql.Stmt, error)
+}
+
 // AuditEventPostgresRepository implements AuditEventRepository using PostgreSQL
 type AuditEventPostgresRepository struct {
-	db     *sql.DB
+	db     DBExecutor
 	logger *logrus.Logger
-	config *adapters.RepositoryConfig
+	config *config.RepositoryConfig
 }
 
 // NewAuditEventRepository creates a new PostgreSQL-based audit event repository
-func NewAuditEventRepository(db *sql.DB, logger *logrus.Logger, config *adapters.RepositoryConfig) adapters.AuditEventRepository {
+func NewAuditEventRepository(db DBExecutor, logger *logrus.Logger, cfg *config.RepositoryConfig) interfaces.AuditEventRepository {
 	return &AuditEventPostgresRepository{
 		db:     db,
 		logger: logger,
-		config: config,
+		config: cfg,
 	}
 }
 
@@ -359,11 +368,23 @@ func (r *AuditEventPostgresRepository) UpdateBatch(ctx context.Context, events [
 		return nil
 	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+	// Check if we already have a transaction
+	var executor DBExecutor
+	var tx *sql.Tx
+	var err error
+
+	if db, ok := r.db.(*sql.DB); ok {
+		// We have a DB, need to start a transaction
+		tx, err = db.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("failed to begin transaction: %w", err)
+		}
+		defer tx.Rollback()
+		executor = tx
+	} else {
+		// We already have a transaction
+		executor = r.db
 	}
-	defer tx.Rollback()
 
 	query := `
 		UPDATE audit_correlator.audit_events
@@ -372,7 +393,7 @@ func (r *AuditEventPostgresRepository) UpdateBatch(ctx context.Context, events [
 		    tags = $10, correlated_to = $11, updated_at = $12
 		WHERE id = $1`
 
-	stmt, err := tx.PrepareContext(ctx, query)
+	stmt, err := executor.PrepareContext(ctx, query)
 	if err != nil {
 		return fmt.Errorf("failed to prepare update statement: %w", err)
 	}
@@ -393,9 +414,12 @@ func (r *AuditEventPostgresRepository) UpdateBatch(ctx context.Context, events [
 		}
 	}
 
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("failed to commit batch update: %w", err)
+	// Only commit if we created the transaction
+	if tx != nil {
+		err = tx.Commit()
+		if err != nil {
+			return fmt.Errorf("failed to commit batch update: %w", err)
+		}
 	}
 
 	r.logger.WithField("count", len(events)).Info("Updated audit events batch")
