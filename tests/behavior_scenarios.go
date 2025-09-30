@@ -11,7 +11,7 @@ import (
 // auditEventLifecycleScenario tests the complete lifecycle of an audit event
 func (suite *BehaviorTestSuite) auditEventLifecycleScenario() {
 	var (
-		eventID = GenerateTestID("event")
+		eventID = GenerateTestUUID()
 		event   *models.AuditEvent
 		err     error
 	)
@@ -141,8 +141,8 @@ func (suite *BehaviorTestSuite) cacheOperationsScenario() {
 // transactionRollbackScenario tests transaction rollback behavior
 func (suite *BehaviorTestSuite) transactionRollbackScenario() {
 	var (
-		eventID1 = GenerateTestID("txn-event-1")
-		eventID2 = GenerateTestID("txn-event-2")
+		eventID1 = GenerateTestUUID()
+		eventID2 = GenerateTestUUID()
 		event1   *models.AuditEvent
 		event2   *models.AuditEvent
 	)
@@ -189,7 +189,7 @@ func (suite *BehaviorTestSuite) bulkOperationsScenario() {
 		eventIDs = make([]string, eventCount)
 
 		for i := 0; i < eventCount; i++ {
-			eventID := GenerateTestID("bulk-event")
+			eventID := GenerateTestUUID()
 			eventIDs[i] = eventID
 			events[i] = suite.CreateTestAuditEvent(eventID, func(e *models.AuditEvent) {
 				e.ServiceName = "bulk-test-service"

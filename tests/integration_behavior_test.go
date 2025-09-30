@@ -1,6 +1,8 @@
 package tests
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -23,8 +25,8 @@ func TestIntegrationBehaviorSuite(t *testing.T) {
 func (suite *IntegrationBehaviorTestSuite) TestFullAuditWorkflow() {
 	var (
 		traceID       = GenerateTestID("workflow-trace")
-		parentEventID = GenerateTestID("parent-event")
-		childEventID  = GenerateTestID("child-event")
+		parentEventID = GenerateTestUUID()
+		childEventID  = GenerateTestUUID()
 		serviceName   = "workflow-test-service"
 		serviceID     = GenerateTestID("workflow-service")
 	)
@@ -45,10 +47,10 @@ func (suite *IntegrationBehaviorTestSuite) TestFullAuditWorkflow() {
 			e.ServiceName = serviceName
 			e.EventType = "workflow-start"
 			e.Status = models.AuditEventStatusPending
-			e.Metadata = map[string]interface{}{
+			e.Metadata = json.RawMessage(`{
 				"workflow_id": "wf-123",
-				"step":        "initialization",
-			}
+				"step": "initialization"
+			}`)
 		})
 
 		err := suite.adapter.Create(suite.ctx, parentEvent)
@@ -61,11 +63,11 @@ func (suite *IntegrationBehaviorTestSuite) TestFullAuditWorkflow() {
 			e.EventType = "workflow-step"
 			e.Status = models.AuditEventStatusPending
 			e.CorrelatedTo = []string{parentEventID}
-			e.Metadata = map[string]interface{}{
+			e.Metadata = json.RawMessage(`{
 				"workflow_id": "wf-123",
-				"step":        "processing",
-				"parent_step": "initialization",
-			}
+				"step": "processing",
+				"parent_step": "initialization"
+			}`)
 		})
 
 		err := suite.adapter.Create(suite.ctx, childEvent)
@@ -161,7 +163,7 @@ func (suite *IntegrationBehaviorTestSuite) TestConcurrentOperations() {
 	}).When("multiple events are created concurrently", func() {
 		// Generate event IDs
 		for i := 0; i < eventCount; i++ {
-			eventIDs[i] = GenerateTestID("concurrent-event")
+			eventIDs[i] = GenerateTestUUID()
 		}
 
 		// Create events concurrently
@@ -172,10 +174,10 @@ func (suite *IntegrationBehaviorTestSuite) TestConcurrentOperations() {
 				event := suite.CreateTestAuditEvent(eventIDs[index], func(e *models.AuditEvent) {
 					e.ServiceName = serviceName
 					e.EventType = "concurrent-test"
-					e.Metadata = map[string]interface{}{
-						"thread_index": index,
-						"timestamp":    time.Now().Format(time.RFC3339Nano),
-					}
+					e.Metadata = json.RawMessage(fmt.Sprintf(`{
+						"thread_index": %d,
+						"timestamp": "%s"
+					}`, index, time.Now().Format(time.RFC3339Nano)))
 				})
 
 				if err := suite.adapter.Create(suite.ctx, event); err != nil {
@@ -255,7 +257,7 @@ func (suite *IntegrationBehaviorTestSuite) TestDataConsistencyAcrossComponents()
 	var (
 		serviceName     = "consistency-test-service"
 		serviceID       = GenerateTestID("consistency-service")
-		eventID         = GenerateTestID("consistency-event")
+		eventID         = GenerateTestUUID()
 		cacheKey        = "service:status:" + serviceID
 		correlationID   = GenerateTestID("correlation")
 	)
@@ -364,7 +366,7 @@ func (suite *IntegrationBehaviorTestSuite) TestHealthAndMonitoring() {
 		suite.Require().NoError(err)
 		suite.trackCreatedService(testService.ID)
 
-		testEvent := suite.CreateTestAuditEvent(GenerateTestID("health-event"), func(e *models.AuditEvent) {
+		testEvent := suite.CreateTestAuditEvent(GenerateTestUUID(), func(e *models.AuditEvent) {
 			e.ServiceName = "health-test-service"
 			e.EventType = "health-check"
 		})
@@ -403,7 +405,7 @@ func (suite *IntegrationBehaviorTestSuite) TestHealthAndMonitoring() {
 // TestErrorRecovery tests error recovery and resilience
 func (suite *IntegrationBehaviorTestSuite) TestErrorRecovery() {
 	var (
-		validEventID   = GenerateTestID("valid-event")
+		validEventID   = GenerateTestUUID()
 		invalidEventID = "" // Invalid ID to trigger error
 		serviceID      = GenerateTestID("recovery-service")
 	)
@@ -482,15 +484,15 @@ func (suite *IntegrationBehaviorTestSuite) TestLargeDatasetOperations() {
 				batchEvents := make([]*models.AuditEvent, 0, batchSize)
 
 				for i := 0; i < batchSize && batch+i < eventCount; i++ {
-					eventID := GenerateTestID("large-event")
+					eventID := GenerateTestUUID()
 					event := suite.CreateTestAuditEvent(eventID, func(e *models.AuditEvent) {
 						e.ServiceName = serviceName
 						e.EventType = "large-dataset-test"
-						e.Metadata = map[string]interface{}{
-							"batch_number": batch / batchSize,
-							"event_index":  i,
-							"dataset_size": eventCount,
-						}
+						e.Metadata = json.RawMessage(fmt.Sprintf(`{
+							"batch_number": %d,
+							"event_index": %d,
+							"dataset_size": %d
+						}`, batch/batchSize, i, eventCount))
 					})
 					batchEvents = append(batchEvents, event)
 					eventIDs = append(eventIDs, eventID)

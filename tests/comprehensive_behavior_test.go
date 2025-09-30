@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -124,7 +125,7 @@ func (suite *ComprehensiveBehaviorTestSuite) testCrossRepositoryConsistency() {
 	var (
 		serviceName = "cross-repo-test-service"
 		serviceID   = GenerateTestID("cross-service")
-		eventID     = GenerateTestID("cross-event")
+		eventID     = GenerateTestUUID()
 		cacheKey    = "cross:test:" + GenerateTestID("cache")
 	)
 
@@ -193,7 +194,7 @@ func (suite *ComprehensiveBehaviorTestSuite) testComplexQueries() {
 
 		// Create events with different characteristics
 		for i := 0; i < eventCount; i++ {
-			eventID := GenerateTestID("complex-event")
+			eventID := GenerateTestUUID()
 			event := suite.CreateTestAuditEvent(eventID, func(e *models.AuditEvent) {
 				e.ServiceName = serviceName
 				e.EventType = fmt.Sprintf("event-type-%d", i%3) // 3 different types
@@ -207,11 +208,11 @@ func (suite *ComprehensiveBehaviorTestSuite) testComplexQueries() {
 					fmt.Sprintf("priority-%d", i%2), // priority-0 or priority-1
 					fmt.Sprintf("category-%d", i%4), // category-0 to category-3
 				}
-				e.Metadata = map[string]interface{}{
-					"batch_id":    i / 5,           // Group into batches
-					"priority":    i % 2,           // 0 or 1
-					"size":        (i + 1) * 100,   // Varying sizes
-				}
+				e.Metadata = json.RawMessage(fmt.Sprintf(`{
+					"batch_id": %d,
+					"priority": %d,
+					"size": %d
+				}`, i/5, i%2, (i+1)*100))
 			})
 
 			err := suite.adapter.Create(suite.ctx, event)
@@ -325,8 +326,8 @@ func (suite *ComprehensiveBehaviorTestSuite) testConnectionRecovery() {
 // testDataIntegrityUnderErrors tests data integrity when errors occur
 func (suite *ComprehensiveBehaviorTestSuite) testDataIntegrityUnderErrors() {
 	var (
-		validEventID   = GenerateTestID("valid-integrity-event")
-		invalidEventID = GenerateTestID("invalid-integrity-event")
+		validEventID   = GenerateTestUUID()
+		invalidEventID = GenerateTestUUID()
 	)
 
 	suite.Given("mixed valid and invalid operations", func() {
@@ -371,7 +372,7 @@ func (suite *ComprehensiveBehaviorTestSuite) testThroughput() {
 
 		suite.AssertPerformance("create events for throughput test", 5*time.Second, func() {
 			for i := 0; i < eventCount; i++ {
-				eventID := GenerateTestID("throughput-event")
+				eventID := GenerateTestUUID()
 				event := suite.CreateTestAuditEvent(eventID, func(e *models.AuditEvent) {
 					e.ServiceName = "throughput-test-service"
 					e.EventType = "throughput-test"
@@ -396,7 +397,7 @@ func (suite *ComprehensiveBehaviorTestSuite) testThroughput() {
 
 // testLatency tests latency characteristics
 func (suite *ComprehensiveBehaviorTestSuite) testLatency() {
-	var eventID = GenerateTestID("latency-event")
+	var eventID = GenerateTestUUID()
 
 	suite.Given("latency testing scenario", func() {
 		event := suite.CreateTestAuditEvent(eventID, func(e *models.AuditEvent) {
@@ -435,14 +436,14 @@ func (suite *ComprehensiveBehaviorTestSuite) testScalability() {
 				suite.AssertPerformance(fmt.Sprintf("create %d events", size),
 					time.Duration(size)*50*time.Millisecond, func() {
 					for i := 0; i < size; i++ {
-						eventID := GenerateTestID("scale-event")
+						eventID := GenerateTestUUID()
 						event := suite.CreateTestAuditEvent(eventID, func(e *models.AuditEvent) {
 							e.ServiceName = "scalability-test-service"
 							e.EventType = "scalability-test"
-							e.Metadata = map[string]interface{}{
-								"batch_size": size,
-								"index":      i,
-							}
+							e.Metadata = json.RawMessage(fmt.Sprintf(`{
+								"batch_size": %d,
+								"index": %d
+							}`, size, i))
 						})
 
 						err := suite.adapter.Create(suite.ctx, event)

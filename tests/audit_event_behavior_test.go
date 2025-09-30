@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -27,7 +28,7 @@ func (suite *AuditEventBehaviorTestSuite) TestAuditEventBasicCRUD() {
 
 // TestAuditEventCreateWithValidation tests event creation with validation
 func (suite *AuditEventBehaviorTestSuite) TestAuditEventCreateWithValidation() {
-	var eventID = GenerateTestID("validation-event")
+	var eventID = GenerateTestUUID()
 
 	suite.Given("an audit event with all required fields", func() {
 		event := suite.CreateTestAuditEvent(eventID, func(e *models.AuditEvent) {
@@ -53,9 +54,9 @@ func (suite *AuditEventBehaviorTestSuite) TestAuditEventCreateWithValidation() {
 func (suite *AuditEventBehaviorTestSuite) TestAuditEventQueryByTraceID() {
 	var (
 		traceID  = GenerateTestID("trace")
-		event1ID = GenerateTestID("event1")
-		event2ID = GenerateTestID("event2")
-		event3ID = GenerateTestID("event3")
+		event1ID = GenerateTestUUID()
+		event2ID = GenerateTestUUID()
+		event3ID = GenerateTestUUID()
 	)
 
 	suite.Given("multiple events with the same trace ID", func() {
@@ -105,7 +106,7 @@ func (suite *AuditEventBehaviorTestSuite) TestAuditEventQueryWithFilters() {
 	suite.Given("multiple events with different attributes", func() {
 		// Create events that match our filter criteria
 		for i := 0; i < 3; i++ {
-			eventID := GenerateTestID("filter-match")
+			eventID := GenerateTestUUID()
 			event := suite.CreateTestAuditEvent(eventID, func(e *models.AuditEvent) {
 				e.ServiceName = serviceName
 				e.EventType = eventType
@@ -120,7 +121,7 @@ func (suite *AuditEventBehaviorTestSuite) TestAuditEventQueryWithFilters() {
 
 		// Create events that don't match
 		for i := 0; i < 2; i++ {
-			eventID := GenerateTestID("filter-nomatch")
+			eventID := GenerateTestUUID()
 			event := suite.CreateTestAuditEvent(eventID, func(e *models.AuditEvent) {
 				e.ServiceName = "different-service"
 				e.EventType = "different-event"
@@ -168,20 +169,20 @@ func (suite *AuditEventBehaviorTestSuite) TestAuditEventBulkOperations() {
 
 // TestAuditEventMetadataHandling tests metadata storage and retrieval
 func (suite *AuditEventBehaviorTestSuite) TestAuditEventMetadataHandling() {
-	var eventID = GenerateTestID("metadata-event")
+	var eventID = GenerateTestUUID()
 
 	suite.Given("an audit event with complex metadata", func() {
 		event := suite.CreateTestAuditEvent(eventID, func(e *models.AuditEvent) {
-			e.Metadata = map[string]interface{}{
-				"string_field":  "test_value",
+			e.Metadata = json.RawMessage(`{
+				"string_field": "test_value",
 				"numeric_field": 42.5,
 				"boolean_field": true,
-				"nested_object": map[string]interface{}{
+				"nested_object": {
 					"nested_string": "nested_value",
-					"nested_number": 123,
+					"nested_number": 123
 				},
-				"array_field": []interface{}{"item1", "item2", "item3"},
-			}
+				"array_field": ["item1", "item2", "item3"]
+			}`)
 		})
 
 		err := suite.adapter.Create(suite.ctx, event)
@@ -192,18 +193,23 @@ func (suite *AuditEventBehaviorTestSuite) TestAuditEventMetadataHandling() {
 		suite.Require().NoError(err)
 
 		suite.Then("the metadata should be preserved correctly", func() {
-			suite.Equal("test_value", event.Metadata["string_field"])
-			suite.Equal(42.5, event.Metadata["numeric_field"])
-			suite.Equal(true, event.Metadata["boolean_field"])
+			// Unmarshal the JSON metadata to check individual fields
+			var metadata map[string]interface{}
+			err := json.Unmarshal(event.Metadata, &metadata)
+			suite.Require().NoError(err, "Should be able to unmarshal metadata")
+
+			suite.Equal("test_value", metadata["string_field"])
+			suite.Equal(42.5, metadata["numeric_field"])
+			suite.Equal(true, metadata["boolean_field"])
 
 			// Check nested object
-			nested, ok := event.Metadata["nested_object"].(map[string]interface{})
+			nested, ok := metadata["nested_object"].(map[string]interface{})
 			suite.True(ok, "Nested object should be preserved")
 			suite.Equal("nested_value", nested["nested_string"])
 			suite.Equal(float64(123), nested["nested_number"]) // JSON numbers become float64
 
 			// Check array
-			array, ok := event.Metadata["array_field"].([]interface{})
+			array, ok := metadata["array_field"].([]interface{})
 			suite.True(ok, "Array should be preserved")
 			suite.Len(array, 3)
 			suite.Equal("item1", array[0])
@@ -214,7 +220,7 @@ func (suite *AuditEventBehaviorTestSuite) TestAuditEventMetadataHandling() {
 // TestAuditEventTagsHandling tests tag storage and querying
 func (suite *AuditEventBehaviorTestSuite) TestAuditEventTagsHandling() {
 	var (
-		eventID = GenerateTestID("tags-event")
+		eventID = GenerateTestUUID()
 		tags    = []string{"production", "critical", "security", "api"}
 	)
 
@@ -259,8 +265,8 @@ func (suite *AuditEventBehaviorTestSuite) TestAuditEventTagsHandling() {
 // TestAuditEventCorrelation tests event correlation functionality
 func (suite *AuditEventBehaviorTestSuite) TestAuditEventCorrelation() {
 	var (
-		parentEventID = GenerateTestID("parent-event")
-		childEventID  = GenerateTestID("child-event")
+		parentEventID = GenerateTestUUID()
+		childEventID  = GenerateTestUUID()
 	)
 
 	suite.Given("a parent audit event", func() {
@@ -314,7 +320,7 @@ func (suite *AuditEventBehaviorTestSuite) TestAuditEventPerformance() {
 	}).When("creating events individually", func() {
 		suite.AssertPerformance("create 100 events individually", 10*time.Second, func() {
 			for i := 0; i < 100; i++ {
-				eventID := GenerateTestID("perf-event")
+				eventID := GenerateTestUUID()
 				event := suite.CreateTestAuditEvent(eventID)
 				err := suite.adapter.Create(suite.ctx, event)
 				suite.Require().NoError(err)
@@ -342,8 +348,8 @@ func (suite *AuditEventBehaviorTestSuite) TestAuditEventPerformance() {
 // TestAuditEventCleanupOperations tests cleanup and archival operations
 func (suite *AuditEventBehaviorTestSuite) TestAuditEventCleanupOperations() {
 	var (
-		oldEventID = GenerateTestID("old-event")
-		newEventID = GenerateTestID("new-event")
+		oldEventID = GenerateTestUUID()
+		newEventID = GenerateTestUUID()
 		cutoffTime = time.Now().Add(-1 * time.Hour)
 	)
 

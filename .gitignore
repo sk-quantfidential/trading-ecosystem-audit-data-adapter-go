@@ -1,3 +1,6 @@
+# Wrong PR file names
+PULL_*.md
+PR_*.md
 
 # Binaries for programs and plugins
 *.exe
@@ -12,12 +15,19 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
 # Go workspace file
 go.work
-go.sum
+go.work.sum
+
+
+# Go coverage files
+*.coverprofile
+coverage.html
+coverage.out
+profile.cov
+
+# Go vendor directory
+vendor/
 
 # Environment files (DO NOT COMMIT SECRETS)
 .env
@@ -40,10 +50,9 @@ go.sum
 ehthumbs.db
 Thumbs.db
 
-# Test artifacts
-coverage.out
-coverage.html
+# Log files
 *.log
+logs/
 
 # Build artifacts
 /bin/
@@ -55,3 +64,5 @@ coverage.html
 .claude_*
 .gitmodules
 CLAUDE.md
+proto/
+

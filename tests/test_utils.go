@@ -6,6 +6,8 @@ import (
 	"runtime"
 	"strconv"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // GetEnv gets environment variable with empty default
@@ -54,6 +56,11 @@ func GetEnvAsBool(key string, defaultValue bool) bool {
 // GenerateTestID generates a unique test ID
 func GenerateTestID(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
+}
+
+// GenerateTestUUID generates a unique UUID for test purposes
+func GenerateTestUUID() string {
+	return uuid.New().String()
 }
 
 // GetTestConfig returns test configuration based on environment
@@ -131,6 +138,11 @@ func NewTestDataGenerator() *TestDataGenerator {
 func (g *TestDataGenerator) NextID(prefix string) string {
 	g.counter++
 	return fmt.Sprintf("%s-%d", prefix, g.counter)
+}
+
+// NextUUID generates a unique UUID
+func (g *TestDataGenerator) NextUUID() string {
+	return uuid.New().String()
 }
 
 // NextEmail generates a unique email address

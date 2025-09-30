@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 
 	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/internal/config"
 	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/pkg/adapters"
+	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/pkg/interfaces"
 	"github.com/quantfidential/trading-ecosystem/audit-data-adapter-go/pkg/models"
 )
 
@@ -26,10 +28,20 @@ type BehaviorTestSuite struct {
 	adapter         adapters.DataAdapter
 	postgresDB      *sql.DB
 	redisClient     *redis.Client
+	auditRepo       interfaces.AuditEventRepository
+	serviceRepo     interfaces.ServiceDiscoveryRepository
+	cacheRepo       interfaces.CacheRepository
 
 	// Test state
 	createdEvents   []string
 	createdServices []string
+
+	// Ecosystem test data
+	correlatedEvents  []*models.AuditEvent
+	flowEvents        []*models.AuditEvent
+	chainedEvents     []*models.AuditEvent
+	aggregatedEvents  []*models.AuditEvent
+	metricsEvents     []*models.AuditEvent
 
 	// Test scenarios
 	scenarios map[string]func()
@@ -79,6 +91,11 @@ func (suite *BehaviorTestSuite) SetupTest() {
 	// Connect to databases
 	err = suite.adapter.Connect(suite.ctx)
 	suite.Require().NoError(err, "Failed to connect adapter")
+
+	// Get repository instances (adapter implements all interfaces directly)
+	suite.auditRepo = suite.adapter
+	suite.serviceRepo = suite.adapter
+	suite.cacheRepo = suite.adapter
 
 	// Reset test state
 	suite.createdEvents = []string{}
@@ -142,19 +159,22 @@ func (suite *BehaviorTestSuite) And(description string, step func()) *BehaviorTe
 
 // CreateTestAuditEvent creates a test audit event with common defaults
 func (suite *BehaviorTestSuite) CreateTestAuditEvent(id string, overrides ...func(*models.AuditEvent)) *models.AuditEvent {
+	// Use UUID if id is not a valid UUID
+	eventID := id
+	if id == "" {
+		eventID = GenerateTestUUID()
+	}
+
 	event := &models.AuditEvent{
-		ID:          id,
-		TraceID:     fmt.Sprintf("trace-%s", id),
-		SpanID:      fmt.Sprintf("span-%s", id),
+		ID:          eventID,
+		TraceID:     fmt.Sprintf("trace-%s", eventID[:8]),
+		SpanID:      fmt.Sprintf("span-%s", eventID[:8]),
 		ServiceName: "test-service",
 		EventType:   "test-event",
 		Timestamp:   time.Now(),
 		Duration:    100 * time.Millisecond,
 		Status:      models.AuditEventStatusPending,
-		Metadata: map[string]interface{}{
-			"test_key": "test_value",
-			"numeric":  42,
-		},
+		Metadata: json.RawMessage(`{"test_key":"test_value","numeric":42}`),
 		Tags:         []string{"test", "behavior"},
 		CorrelatedTo: []string{},
 	}

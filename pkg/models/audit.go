@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -14,7 +15,7 @@ type AuditEvent struct {
 	Timestamp    time.Time              `json:"timestamp" bson:"timestamp"`
 	Duration     time.Duration          `json:"duration" bson:"duration"`
 	Status       AuditEventStatus       `json:"status" bson:"status"`
-	Metadata     map[string]interface{} `json:"metadata" bson:"metadata"`
+	Metadata     json.RawMessage        `json:"metadata" bson:"metadata"`
 	Tags         []string               `json:"tags" bson:"tags"`
 	CorrelatedTo []string               `json:"correlated_to" bson:"correlated_to"`
 	CreatedAt    time.Time              `json:"created_at" bson:"created_at"`
