@@ -1,3 +1,62 @@
+# Wrong PR file names
+PULL_*.md
+PR_*.md
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Go workspace file
+go.work
+go.work.sum
+
+
+# Go coverage files
+*.coverprofile
+coverage.html
+coverage.out
+profile.cov
+
+# Go vendor directory
+vendor/
+
+# Environment files (DO NOT COMMIT SECRETS)
+.env
+.env.local
+.env.*.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Log files
+*.log
+logs/
+
+# Build artifacts
+/bin/
+/dist/
 
 # Claude Configuration (IP separated)
 .claude-defaults/
@@ -5,3 +64,5 @@
 .claude_*
 .gitmodules
 CLAUDE.md
+proto/
+
