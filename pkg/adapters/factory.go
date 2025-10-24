@@ -11,6 +11,10 @@ import (
 // NewAuditDataAdapterFromEnv creates a new audit data adapter with configuration from environment variables
 func NewAuditDataAdapterFromEnv(logger *logrus.Logger) (DataAdapter, error) {
 	cfg := config.LoadRepositoryConfig()
+
+	// Log configuration for debugging (with password masking)
+	cfg.LogConfiguration(logger)
+
 	return NewAuditDataAdapter(cfg, logger)
 }
 

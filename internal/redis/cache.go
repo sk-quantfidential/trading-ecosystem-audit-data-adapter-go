@@ -199,12 +199,12 @@ func (r *CacheRedisRepository) GetKeysByPattern(ctx context.Context, pattern str
 		return nil, fmt.Errorf("failed to get keys by pattern: %w", err)
 	}
 
-	// Remove cache prefix from keys
-	cachePrefix := "cache:"
+	// Remove namespace prefix from keys
+	namespacePrefix := fmt.Sprintf("%s:", r.config.RedisNamespace)
 	results := make([]string, len(keys))
 	for i, key := range keys {
-		if len(key) > len(cachePrefix) {
-			results[i] = key[len(cachePrefix):]
+		if len(key) > len(namespacePrefix) {
+			results[i] = key[len(namespacePrefix):]
 		} else {
 			results[i] = key
 		}
@@ -289,16 +289,33 @@ func (r *CacheRedisRepository) GetStats(ctx context.Context) (map[string]interfa
 		stats["db_size"] = dbSize
 	}
 
-	// Get memory usage
-	memUsage, err := r.client.MemoryUsage(ctx, "cache:*").Result()
+	// Get memory usage for namespace keys
+	namespacePattern := fmt.Sprintf("%s:*", r.config.RedisNamespace)
+	memUsage, err := r.client.MemoryUsage(ctx, namespacePattern).Result()
 	if err == nil {
-		stats["cache_memory_usage"] = memUsage
+		stats["namespace_memory_usage"] = memUsage
 	}
 
 	return stats, nil
 }
 
+// ValidateNamespace validates the Redis namespace configuration
+func (r *CacheRedisRepository) ValidateNamespace(ctx context.Context) error {
+	// Test write to namespace
+	testKey := fmt.Sprintf("%s:__validation__", r.config.RedisNamespace)
+	err := r.client.Set(ctx, testKey, "ok", 10*time.Second).Err()
+	if err != nil {
+		return fmt.Errorf("failed to validate Redis namespace: %w", err)
+	}
+
+	// Clean up test key
+	r.client.Del(ctx, testKey)
+
+	r.logger.WithField("namespace", r.config.RedisNamespace).Info("Redis namespace validated")
+	return nil
+}
+
 // Helper methods
 func (r *CacheRedisRepository) getCacheKey(key string) string {
-	return fmt.Sprintf("cache:%s", key)
+	return fmt.Sprintf("%s:%s", r.config.RedisNamespace, key)
 }

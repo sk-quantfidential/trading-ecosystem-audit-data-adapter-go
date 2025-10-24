@@ -39,13 +39,35 @@ func NewAuditEventRepository(db DBExecutor, logger *logrus.Logger, cfg *config.R
 	}
 }
 
+// ValidateSchema validates that the configured PostgreSQL schema exists
+func (r *AuditEventPostgresRepository) ValidateSchema(ctx context.Context) error {
+	query := `
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.schemata
+			WHERE schema_name = $1
+		)`
+
+	var exists bool
+	err := r.db.QueryRowContext(ctx, query, r.config.SchemaName).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("failed to validate schema: %w", err)
+	}
+
+	if !exists {
+		return fmt.Errorf("schema %s does not exist - run database migrations first", r.config.SchemaName)
+	}
+
+	r.logger.WithField("schema", r.config.SchemaName).Info("PostgreSQL schema validated")
+	return nil
+}
+
 // Create inserts a new audit event
 func (r *AuditEventPostgresRepository) Create(ctx context.Context, event *models.AuditEvent) error {
-	query := `
-		INSERT INTO audit_correlator.audit_events (
+	query := fmt.Sprintf(`
+		INSERT INTO %s.audit_events (
 			id, trace_id, span_id, service_name, event_type, timestamp, duration,
 			status, metadata, tags, correlated_to, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`, r.config.SchemaName)
 
 	now := time.Now()
 	if event.CreatedAt.IsZero() {
@@ -75,11 +97,11 @@ func (r *AuditEventPostgresRepository) Create(ctx context.Context, event *models
 
 // GetByID retrieves an audit event by ID
 func (r *AuditEventPostgresRepository) GetByID(ctx context.Context, id string) (*models.AuditEvent, error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT id, trace_id, span_id, service_name, event_type, timestamp, duration,
 		       status, metadata, tags, correlated_to, created_at, updated_at
-		FROM audit_correlator.audit_events
-		WHERE id = $1`
+		FROM %s.audit_events
+		WHERE id = $1`, r.config.SchemaName)
 
 	row := r.db.QueryRowContext(ctx, query, id)
 
@@ -106,12 +128,12 @@ func (r *AuditEventPostgresRepository) GetByID(ctx context.Context, id string) (
 
 // Update modifies an existing audit event
 func (r *AuditEventPostgresRepository) Update(ctx context.Context, event *models.AuditEvent) error {
-	query := `
-		UPDATE audit_correlator.audit_events
+	query := fmt.Sprintf(`
+		UPDATE %s.audit_events
 		SET trace_id = $2, span_id = $3, service_name = $4, event_type = $5,
 		    timestamp = $6, duration = $7, status = $8, metadata = $9,
 		    tags = $10, correlated_to = $11, updated_at = $12
-		WHERE id = $1`
+		WHERE id = $1`, r.config.SchemaName)
 
 	event.UpdatedAt = time.Now()
 
@@ -138,7 +160,7 @@ func (r *AuditEventPostgresRepository) Update(ctx context.Context, event *models
 
 // Delete removes an audit event
 func (r *AuditEventPostgresRepository) Delete(ctx context.Context, id string) error {
-	query := `DELETE FROM audit_correlator.audit_events WHERE id = $1`
+	query := fmt.Sprintf(`DELETE FROM %s.audit_events WHERE id = $1`, r.config.SchemaName)
 
 	result, err := r.db.ExecContext(ctx, query, id)
 	if err != nil {
@@ -197,10 +219,10 @@ func (r *AuditEventPostgresRepository) Query(ctx context.Context, query models.A
 
 // Count returns the count of audit events matching the query
 func (r *AuditEventPostgresRepository) Count(ctx context.Context, query models.AuditQuery) (int64, error) {
-	countQuery := `
+	countQuery := fmt.Sprintf(`
 		SELECT COUNT(*)
-		FROM audit_correlator.audit_events
-		WHERE 1=1`
+		FROM %s.audit_events
+		WHERE 1=1`, r.config.SchemaName)
 
 	var args []interface{}
 	var conditions []string
@@ -275,18 +297,18 @@ func (r *AuditEventPostgresRepository) GetByTraceID(ctx context.Context, traceID
 
 // GetCorrelatedEvents retrieves events correlated to a specific event
 func (r *AuditEventPostgresRepository) GetCorrelatedEvents(ctx context.Context, eventID string) ([]*models.AuditEvent, error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT DISTINCT ae.id, ae.trace_id, ae.span_id, ae.service_name, ae.event_type,
 		       ae.timestamp, ae.duration, ae.status, ae.metadata, ae.tags,
 		       ae.correlated_to, ae.created_at, ae.updated_at
-		FROM audit_correlator.audit_events ae
+		FROM %s.audit_events ae
 		WHERE ae.id = ANY(
 			SELECT unnest(correlated_to)
-			FROM audit_correlator.audit_events
+			FROM %s.audit_events
 			WHERE id = $1
 		)
 		OR $1 = ANY(ae.correlated_to)
-		ORDER BY ae.timestamp ASC`
+		ORDER BY ae.timestamp ASC`, r.config.SchemaName, r.config.SchemaName)
 
 	rows, err := r.db.QueryContext(ctx, query, eventID)
 	if err != nil {
@@ -324,11 +346,11 @@ func (r *AuditEventPostgresRepository) CreateBatch(ctx context.Context, events [
 		return nil
 	}
 
-	query := `
-		INSERT INTO audit_correlator.audit_events (
+	query := fmt.Sprintf(`
+		INSERT INTO %s.audit_events (
 			id, trace_id, span_id, service_name, event_type, timestamp, duration,
 			status, metadata, tags, correlated_to, created_at, updated_at
-		) VALUES `
+		) VALUES `, r.config.SchemaName)
 
 	values := make([]string, len(events))
 	args := make([]interface{}, 0, len(events)*13)
@@ -386,12 +408,12 @@ func (r *AuditEventPostgresRepository) UpdateBatch(ctx context.Context, events [
 		executor = r.db
 	}
 
-	query := `
-		UPDATE audit_correlator.audit_events
+	query := fmt.Sprintf(`
+		UPDATE %s.audit_events
 		SET trace_id = $2, span_id = $3, service_name = $4, event_type = $5,
 		    timestamp = $6, duration = $7, status = $8, metadata = $9,
 		    tags = $10, correlated_to = $11, updated_at = $12
-		WHERE id = $1`
+		WHERE id = $1`, r.config.SchemaName)
 
 	stmt, err := executor.PrepareContext(ctx, query)
 	if err != nil {
@@ -429,7 +451,7 @@ func (r *AuditEventPostgresRepository) UpdateBatch(ctx context.Context, events [
 
 // DeleteOlderThan removes audit events older than the specified timestamp
 func (r *AuditEventPostgresRepository) DeleteOlderThan(ctx context.Context, timestamp time.Time) (int64, error) {
-	query := `DELETE FROM audit_correlator.audit_events WHERE created_at < $1`
+	query := fmt.Sprintf(`DELETE FROM %s.audit_events WHERE created_at < $1`, r.config.SchemaName)
 
 	result, err := r.db.ExecContext(ctx, query, timestamp)
 	if err != nil {
@@ -454,10 +476,10 @@ func (r *AuditEventPostgresRepository) DeleteOlderThan(ctx context.Context, time
 // ArchiveOlderThan moves old audit events to archive table
 func (r *AuditEventPostgresRepository) ArchiveOlderThan(ctx context.Context, timestamp time.Time) (int64, error) {
 	// First, copy to archive table
-	archiveQuery := `
-		INSERT INTO audit_correlator.audit_events_archive
-		SELECT * FROM audit_correlator.audit_events
-		WHERE created_at < $1`
+	archiveQuery := fmt.Sprintf(`
+		INSERT INTO %s.audit_events_archive
+		SELECT * FROM %s.audit_events
+		WHERE created_at < $1`, r.config.SchemaName, r.config.SchemaName)
 
 	result, err := r.db.ExecContext(ctx, archiveQuery, timestamp)
 	if err != nil {
@@ -471,7 +493,7 @@ func (r *AuditEventPostgresRepository) ArchiveOlderThan(ctx context.Context, tim
 
 	if archivedCount > 0 {
 		// Delete from main table
-		deleteQuery := `DELETE FROM audit_correlator.audit_events WHERE created_at < $1`
+		deleteQuery := fmt.Sprintf(`DELETE FROM %s.audit_events WHERE created_at < $1`, r.config.SchemaName)
 		_, err = r.db.ExecContext(ctx, deleteQuery, timestamp)
 		if err != nil {
 			return 0, fmt.Errorf("failed to delete archived events: %w", err)
@@ -488,11 +510,11 @@ func (r *AuditEventPostgresRepository) ArchiveOlderThan(ctx context.Context, tim
 
 // buildQuery constructs SQL query and arguments from AuditQuery
 func (r *AuditEventPostgresRepository) buildQuery(query models.AuditQuery) (string, []interface{}) {
-	sqlQuery := `
+	sqlQuery := fmt.Sprintf(`
 		SELECT id, trace_id, span_id, service_name, event_type, timestamp, duration,
 		       status, metadata, tags, correlated_to, created_at, updated_at
-		FROM audit_correlator.audit_events
-		WHERE 1=1`
+		FROM %s.audit_events
+		WHERE 1=1`, r.config.SchemaName)
 
 	var args []interface{}
 	var conditions []string
