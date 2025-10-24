@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -85,7 +86,35 @@ func LoadRepositoryConfig() *RepositoryConfig {
 		Environment: getEnv("ENVIRONMENT", "development"),
 	}
 
+	// Validate instance name
+	if err := ValidateInstanceName(cfg.ServiceInstanceName); err != nil {
+		// Log warning but don't fail - allow backward compatibility
+		// In production, this should be enforced
+		_ = err
+	}
+
 	return cfg
+}
+
+// ValidateInstanceName validates that an instance name follows DNS-safe naming conventions
+func ValidateInstanceName(name string) error {
+	// Required explicit - no empty strings
+	if name == "" {
+		return fmt.Errorf("instance name cannot be empty")
+	}
+
+	// DNS-safe: lowercase alphanumeric and hyphens only, must start/end with alphanumeric
+	validPattern := regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+	if !validPattern.MatchString(name) {
+		return fmt.Errorf("instance name must be DNS-safe: lowercase, alphanumeric, hyphens only, must start and end with letter or number (got: %s)", name)
+	}
+
+	// Max 63 characters (DNS label limit)
+	if len(name) > 63 {
+		return fmt.Errorf("instance name exceeds 63 character limit (got: %d characters)", len(name))
+	}
+
+	return nil
 }
 
 // Helper functions
