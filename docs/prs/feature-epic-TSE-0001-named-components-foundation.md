@@ -17,6 +17,28 @@ This PR implements the **Phase 0 (CRITICAL)** foundation for multi-instance infr
 
 This is the **foundational layer** that enables all other services to support multi-instance deployment with proper database and cache isolation.
 
+## What Changed
+
+### audit-data-adapter-go
+
+**Files Modified**:
+- `pkg/adapter/config.go` - Added ServiceName, ServiceInstanceName, SchemaName, RedisNamespace fields to RepositoryConfig
+- `pkg/adapter/factory.go` - Added deriveSchemaName() and deriveRedisNamespace() functions, integrated automatic derivation in NewAdapterFactory
+- `pkg/adapter/factory_test.go` - Added 19 comprehensive unit tests for derivation logic
+
+**Key Changes**:
+- Instance-aware configuration with automatic schema/namespace derivation
+- Singleton pattern support (serviceName == instanceName)
+- Multi-instance pattern support (serviceName != instanceName)
+- Backward compatible (explicit values override derivation)
+
+**DNS-Safe Instance Name Validation**:
+- Added ValidateInstanceName() function in config.go
+- Validates lowercase alphanumeric + hyphens only
+- Max 63 characters (DNS label limit)
+- Pattern: `^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`
+- Non-blocking validation (logs warning only)
+
 ## Audit-Data-Adapter-Go Repository Changes
 
 ### Commit Summary
