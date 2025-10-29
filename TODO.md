@@ -241,6 +241,11 @@ psql "postgres://audit_adapter:audit-adapter-db-pass@localhost:5432/trading_ecos
 **Pattern Established**: Ready to replicate to remaining Go services
 
 ### Pending Service Integrations
+
+### Standardize Validation Scripts
+- [ ] Replace all validate-all.sh with standardized version
+- [ ] Replace symlinks with actual file copies
+- [ ] Remove validate-repository.sh (deprecated)
 - [ ] custodian-simulator-go - Awaiting TSE-0001.4 integration
 - [ ] exchange-simulator-go - Awaiting TSE-0001.4 integration
 - [ ] market-data-simulator-go - Awaiting TSE-0001.4 integration
